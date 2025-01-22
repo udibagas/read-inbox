@@ -22,7 +22,7 @@ credentials.forEach((credential) => {
         const senderCriteria = senderEmails.map((email) => ["FROM", email]);
         const searchCriteria = [["OR", ...senderCriteria], "UNSEEN"];
         const fetchOptions = {
-          bodies: ["HEADER.FIELDS (SENDER SUBJECT DATE MESSAGE-ID)", "TEXT"],
+          bodies: ["HEADER.FIELDS (FROM SUBJECT DATE)", "TEXT"],
           struct: false,
         };
 
