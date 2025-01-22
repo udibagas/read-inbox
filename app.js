@@ -6,7 +6,7 @@ const credentials = require("./credentials");
 credentials.forEach((credential) => {
   const imap = new Imap(credential);
 
-  imap.once("ready", () => {
+  imap.on("ready", () => {
     console.log(`Connected to ${credential.host}!`);
 
     imap.openBox("INBOX", true, (err, box) => {
@@ -16,65 +16,62 @@ credentials.forEach((credential) => {
 
       imap.on("mail", (numNewMsgs) => {
         console.log("You have " + numNewMsgs + " new messages");
+        const f = imap.seq.fetch(`${box.uidnext}:*`, {
+          bodies: ["HEADER.FIELDS (FROM SUBJECT)", "TEXT"],
+          struct: true,
+        });
 
-        // const senderEmail = "noreply@tokopedia.com";
-        const senderEmail = "bagas@lamsolusi.com"; // test doank
-        const searchCriteria = [["FROM", senderEmail], "UNSEEN"];
-        const fetchOptions = { bodies: "" };
+        f.on("message", (msg, seqno) => {
+          console.log("Message #%d", seqno);
+          const prefix = "(#" + seqno + ") ";
 
-        imap.search(searchCriteria, (err, results) => {
-          if (err) throw err;
+          msg.on("body", (stream, info) => {
+            let buffer = "";
 
-          const latestEmail = results[results.length - 1];
-          const f = imap.fetch(latestEmail, fetchOptions);
-
-          f.on("message", (msg, seqno) => {
-            console.log("Message #%d", seqno);
-            const prefix = "(#" + seqno + ") ";
-
-            msg.on("body", (stream, info) => {
-              let buffer = "";
-
-              stream.on("data", (chunk) => {
-                buffer += chunk.toString("utf8");
-              });
-
-              stream.once("end", () => {
-                // console.log(
-                //   prefix + "Parsed header: %s",
-                //   inspect(Imap.parseHeader(buffer))
-                // );
-                console.log(Imap.parseHeader(buffer));
-              });
+            stream.on("data", (chunk) => {
+              buffer += chunk.toString("utf8");
             });
 
-            // msg.once("attributes", (attrs) => {
-            //   console.log(prefix + "Attributes: %s", inspect(attrs, false, 8));
-            // });
-
-            msg.once("end", () => {
-              console.log(prefix + "Finished");
+            stream.once("end", () => {
+              console.log(
+                prefix + "Parsed header: %s",
+                inspect(Imap.parseHeader(buffer)),
+                buffer.toString("utf8")
+              );
             });
           });
 
-          f.once("error", (err) => {
-            console.log("Fetch error: " + err);
+          msg.once("attributes", (attrs) => {
+            console.log(prefix + "Attributes: %s", inspect(attrs, false, 8));
           });
 
-          f.once("end", () => {
-            console.log("Done fetching the latest message!");
+          msg.once("end", () => {
+            console.log(prefix + "Finished");
           });
+        });
+
+        f.once("error", (err) => {
+          console.log("Fetch error: " + err);
+        });
+
+        f.once("end", () => {
+          console.log("Done fetching the latest message!");
         });
       });
     });
   });
 
-  imap.once("error", (err) => {
+  imap.on("error", (err) => {
     console.log("IMAP Error: " + err.message);
   });
 
-  imap.once("end", () => {
+  imap.on("end", () => {
     console.log("Connection ended");
+  });
+
+  imap.on("close", function () {
+    console.log("Connection closed. Reconnecting...");
+    imap.connect();
   });
 
   imap.connect();
