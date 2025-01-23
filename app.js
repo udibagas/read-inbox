@@ -12,6 +12,9 @@ credentials.forEach((credential) => {
     },
   });
 
+  let header = null;
+  let body = null;
+
   imap.on("ready", () => {
     console.log(`Connected to ${credential.host}!`);
 
@@ -63,13 +66,22 @@ credentials.forEach((credential) => {
 
               stream.once("end", () => {
                 if (info.which === "TEXT") {
-                  console.log(prefix + "Body: %s", buffer.toString("utf8"));
+                  body = buffer.toString("utf8");
+                  console.log(prefix + "Body: %s", body);
                 }
 
                 if (info.which === "HEADER.FIELDS (FROM SUBJECT DATE)") {
+                  const currentHeader = Imap.parseHeader(buffer);
+
+                  header = {
+                    from: currentHeader.from[0],
+                    subject: currentHeader.subject[0],
+                    date: new Date(currentHeader.date[0]),
+                  };
+
                   console.log(
                     prefix + "Parsed header: %s",
-                    inspect(Imap.parseHeader(buffer))
+                    inspect(currentHeader)
                   );
                 }
               });
@@ -82,6 +94,7 @@ credentials.forEach((credential) => {
 
             msg.once("end", () => {
               console.log(prefix + "Finished");
+              processEmail(header, body);
             });
           });
 
@@ -112,3 +125,9 @@ credentials.forEach((credential) => {
 
   imap.connect();
 });
+
+function processEmail(header, body) {
+  console.log("Processing email...");
+  console.log("Header =", header);
+  console.log("Body =", body);
+}
