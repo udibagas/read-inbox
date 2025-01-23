@@ -4,7 +4,13 @@ const inspect = require("util").inspect;
 const credentials = require("./credentials");
 
 credentials.forEach((credential) => {
-  const imap = new Imap(credential);
+  const imap = new Imap({
+    ...credential,
+    tls: true,
+    tlsOptions: {
+      rejectUnauthorized: false,
+    },
+  });
 
   imap.on("ready", () => {
     console.log(`Connected to ${credential.host}!`);
@@ -13,49 +19,79 @@ credentials.forEach((credential) => {
       if (err) throw err;
       console.log("INBOX opened", box);
       console.log("Waiting for new messages...");
+      let uidNext = box.uidnext;
 
       imap.on("mail", (numNewMsgs) => {
         console.log("You have " + numNewMsgs + " new messages");
-        const f = imap.seq.fetch(`${box.uidnext}:*`, {
-          bodies: ["HEADER.FIELDS (FROM SUBJECT)", "TEXT"],
-          struct: true,
-        });
 
-        f.on("message", (msg, seqno) => {
-          console.log("Message #%d", seqno);
-          const prefix = "(#" + seqno + ") ";
+        // const senderEmails = ["noreply@tokopedia.com"];
+        const senderEmails = ["bagas@lamsolusi.com", "udibagas@gmail.com"]; // test doank
+        const senderCriteria = senderEmails.map((email) => ["FROM", email]);
+        const searchCriteria = [
+          ["OR", ...senderCriteria],
+          ["UID", `${uidNext}:*`],
+          "UNSEEN",
+        ];
+        const fetchOptions = {
+          bodies: ["HEADER.FIELDS (FROM SUBJECT DATE)", "TEXT"],
+          struct: false,
+        };
 
-          msg.on("body", (stream, info) => {
-            let buffer = "";
+        imap.search(searchCriteria, (err, results) => {
+          if (err) throw err;
+          console.log("Result =", results);
 
-            stream.on("data", (chunk) => {
-              buffer += chunk.toString("utf8");
+          if (results.length === 0) {
+            console.log("No new messages from the specified criteria");
+            return;
+          }
+
+          const latestEmail = results.at(-1);
+          const f = imap.fetch(latestEmail, fetchOptions);
+
+          f.on("message", (msg, seqno) => {
+            console.log("Message #%d", seqno);
+            const prefix = "(#" + seqno + ") ";
+
+            msg.on("body", (stream, info) => {
+              console.log("Info =", info);
+              let buffer = "";
+
+              stream.on("data", (chunk) => {
+                buffer += chunk.toString("utf8");
+              });
+
+              stream.once("end", () => {
+                if (info.which === "TEXT") {
+                  console.log(prefix + "Body: %s", buffer.toString("utf8"));
+                }
+
+                if (info.which === "HEADER.FIELDS (FROM SUBJECT DATE)") {
+                  console.log(
+                    prefix + "Parsed header: %s",
+                    inspect(Imap.parseHeader(buffer))
+                  );
+                }
+              });
             });
 
-            stream.once("end", () => {
-              console.log(
-                prefix + "Parsed header: %s",
-                inspect(Imap.parseHeader(buffer)),
-                buffer.toString("utf8")
-              );
+            msg.once("attributes", (attrs) => {
+              console.log(prefix + "Attributes: %s", inspect(attrs, false, 8));
+              uidNext = attrs.uid + 1;
+            });
+
+            msg.once("end", () => {
+              console.log(prefix + "Finished");
             });
           });
 
-          msg.once("attributes", (attrs) => {
-            console.log(prefix + "Attributes: %s", inspect(attrs, false, 8));
+          f.once("error", (err) => {
+            console.log("Fetch error: " + err.message);
           });
 
-          msg.once("end", () => {
-            console.log(prefix + "Finished");
+          f.once("end", () => {
+            console.log("Done fetching the latest message!");
           });
-        });
-
-        f.once("error", (err) => {
-          console.log("Fetch error: " + err);
-        });
-
-        f.once("end", () => {
-          console.log("Done fetching the latest message!");
         });
       });
     });
