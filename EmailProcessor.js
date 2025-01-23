@@ -1,12 +1,16 @@
-class EmailProcessor {
-  constructor(header, body) {
-    this.header = header;
-    this.body = body;
+module.exports = (header, body) => {
+  class EmailProcessor {
+    constructor(header, body) {
+      this.header = header;
+      this.body = body;
+    }
+
+    process() {
+      console.log("Processing email...");
+      console.log("Header =", this.header);
+      console.log("Body =", this.body);
+    }
   }
 
-  process() {
-    // Process the email
-  }
-}
-
-module.exports = EmailProcessor;
+  return new EmailProcessor(header, body);
+};

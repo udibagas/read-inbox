@@ -41,7 +41,7 @@ credentials.forEach((credential) => {
         };
 
         imap.search(searchCriteria, (err, results) => {
-          if (err) throw err;
+          if (err) return console.error(err.message);
           console.log("Result =", results);
 
           if (results.length === 0) {
@@ -94,7 +94,8 @@ credentials.forEach((credential) => {
 
             msg.once("end", () => {
               console.log(prefix + "Finished");
-              processEmail(header, body);
+              const emailProcessor = require("./EmailProcessor")(header, body);
+              emailProcessor.process();
             });
           });
 
@@ -125,9 +126,3 @@ credentials.forEach((credential) => {
 
   imap.connect();
 });
-
-function processEmail(header, body) {
-  console.log("Processing email...");
-  console.log("Header =", header);
-  console.log("Body =", body);
-}
